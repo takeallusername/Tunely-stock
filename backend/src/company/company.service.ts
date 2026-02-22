@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { EntityManager } from '@mikro-orm/mysql';
 import { Company } from './entities/company.entity';
+import { UserCompany } from '../user-company/entities/user-company.entity';
 import { Financial } from '../financial/entities/financial.entity';
 import { StockData } from '../stock/entities/stock-data.entity';
 import { StockHistory } from '../stock/entities/stock-history.entity';
@@ -20,18 +21,36 @@ export class CompanyService {
   }
 
   async register(userId: string, corpCode: string, corpName: string, stockCode?: string) {
-    const company = new Company();
-    company.userId = userId;
-    company.corpCode = corpCode;
-    company.corpName = corpName;
-    company.stockCode = stockCode;
+    let company = await this.em.findOne(Company, { corpCode });
 
-    await this.em.persistAndFlush(company);
+    if (!company) {
+      company = new Company();
+      company.corpCode = corpCode;
+      company.corpName = corpName;
+      company.stockCode = stockCode;
+      this.em.persist(company);
+    }
+
+    const existingLink = await this.em.findOne(UserCompany, { userId, company });
+    if (existingLink) {
+      return company;
+    }
+
+    const userCompany = new UserCompany();
+    userCompany.userId = userId;
+    userCompany.company = company;
+
+    await this.em.persistAndFlush(userCompany);
     return company;
   }
 
-  async findAll(userId: string) {
-    return this.em.find(Company, { userId });
+  async findAll(userId: string): Promise<Company[]> {
+    const userCompanies = await this.em.find(
+      UserCompany,
+      { userId },
+      { populate: ['company'] },
+    );
+    return userCompanies.map((uc) => uc.company);
   }
 
   async findOne(id: number) {
@@ -50,11 +69,11 @@ export class CompanyService {
   }
 
   async delete(id: number, userId: string) {
-    const company = await this.em.findOne(Company, { id, userId });
-    if (!company) {
+    const userCompany = await this.em.findOne(UserCompany, { userId, company: { id } });
+    if (!userCompany) {
       return null;
     }
-    await this.em.removeAndFlush(company);
+    await this.em.removeAndFlush(userCompany);
     return { deleted: true };
   }
 

@@ -4,18 +4,18 @@ import {
   Property,
   OneToMany,
   Collection,
+  Unique,
 } from '@mikro-orm/core';
 import { Financial } from '../../financial/entities/financial.entity';
 import { StockData } from '../../stock/entities/stock-data.entity';
 import { StockHistory } from '../../stock/entities/stock-history.entity';
+import { UserCompany } from '../../user-company/entities/user-company.entity';
 
 @Entity({ tableName: 'companies' })
+@Unique({ properties: ['corpCode'] })
 export class Company {
   @PrimaryKey()
   id!: number;
-
-  @Property({ length: 36 })
-  userId!: string;
 
   @Property({ length: 8 })
   corpCode!: string;
@@ -37,4 +37,7 @@ export class Company {
 
   @OneToMany(() => StockHistory, (stockHistory) => stockHistory.company)
   stockHistory = new Collection<StockHistory>(this);
+
+  @OneToMany(() => UserCompany, (userCompany) => userCompany.company)
+  userCompanies = new Collection<UserCompany>(this);
 }

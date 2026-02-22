@@ -41,7 +41,6 @@ type StockHistory = {
 
 type Company = {
   id: number;
-  userId: string;
   corpCode: string;
   corpName: string;
   stockCode?: string;
