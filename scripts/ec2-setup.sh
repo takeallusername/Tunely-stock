@@ -7,7 +7,7 @@ sudo yum install -y nodejs git
 sudo npm install -g pm2
 
 cd ~
-git clone https://github.com/YOUR_USERNAME/Tunely.git tunely
+git clone https://github.com/takeallusername/Tunely-stock.git tunely
 cd tunely/backend
 
 cat > .env << 'EOF'
