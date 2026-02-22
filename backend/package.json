@@ -25,7 +25,9 @@
   },
   "mikro-orm": {
     "useTsNode": true,
-    "configPaths": ["./mikro-orm.config.ts"]
+    "configPaths": [
+      "./mikro-orm.config.ts"
+    ]
   },
   "dependencies": {
     "@mikro-orm/cli": "^6.6.7",
@@ -36,8 +38,11 @@
     "@nestjs/config": "^4.0.3",
     "@nestjs/core": "^11.0.1",
     "@nestjs/platform-express": "^11.0.1",
+    "adm-zip": "^0.5.16",
+    "axios": "^1.13.5",
     "reflect-metadata": "^0.2.2",
-    "rxjs": "^7.8.1"
+    "rxjs": "^7.8.1",
+    "xml2js": "^0.6.2"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.2.0",
@@ -45,10 +50,12 @@
     "@nestjs/cli": "^11.0.0",
     "@nestjs/schematics": "^11.0.0",
     "@nestjs/testing": "^11.0.1",
+    "@types/adm-zip": "^0.5.7",
     "@types/express": "^5.0.0",
     "@types/jest": "^30.0.0",
     "@types/node": "^22.10.7",
     "@types/supertest": "^6.0.2",
+    "@types/xml2js": "^0.4.14",
     "eslint": "^9.18.0",
     "eslint-config-prettier": "^10.0.1",
     "eslint-plugin-prettier": "^5.2.2",

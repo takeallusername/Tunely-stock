@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { MikroOrmModule } from '@mikro-orm/nestjs';
 import mikroOrmConfig from './common/config/mikro-orm.config';
+import { DartModule } from './dart/dart.module';
 
 @Module({
   imports: [
@@ -9,6 +10,7 @@ import mikroOrmConfig from './common/config/mikro-orm.config';
       isGlobal: true,
     }),
     MikroOrmModule.forRoot(mikroOrmConfig),
+    DartModule,
   ],
   controllers: [],
   providers: [],
