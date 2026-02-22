@@ -37,5 +37,5 @@ jobs:
 
             npm ci
             npm run build
-            pm2 restart tunely-backend || pm2 start dist/main.js --name tunely-backend
+            pm2 restart tunely-backend || pm2 start dist/src/main.js --name tunely-backend
             pm2 save
