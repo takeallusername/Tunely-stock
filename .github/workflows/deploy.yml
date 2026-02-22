@@ -1,0 +1,39 @@
+name: Deploy to EC2
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'backend/**'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy to EC2
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          envs: DB_HOST,DB_PORT,DB_USER,DB_PASSWORD,DB_NAME,DART_API_KEY
+          script: |
+            cd ~/tunely
+            git pull origin main
+
+            cd backend
+            cat > .env << EOF
+            DB_HOST=${{ secrets.DB_HOST }}
+            DB_PORT=${{ secrets.DB_PORT }}
+            DB_USER=${{ secrets.DB_USER }}
+            DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+            DB_NAME=${{ secrets.DB_NAME }}
+            DART_API_KEY=${{ secrets.DART_API_KEY }}
+            EOF
+
+            npm ci
+            npm run build
+            pm2 restart tunely-backend || pm2 start dist/main.js --name tunely-backend
+            pm2 save
