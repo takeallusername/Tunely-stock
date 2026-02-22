@@ -89,13 +89,14 @@ export class DartService {
     const companies = result.result.list || [];
     const filtered = companies.filter((item: any) => {
       const corpName = item.corp_name?.[0] || '';
-      return corpName.includes(name);
+      const stockCode = item.stock_code?.[0]?.trim();
+      return corpName.includes(name) && stockCode;
     });
 
     return filtered.slice(0, 20).map((item: any) => ({
       corpCode: item.corp_code?.[0] || '',
       corpName: item.corp_name?.[0] || '',
-      stockCode: item.stock_code?.[0]?.trim() || null,
+      stockCode: item.stock_code?.[0]?.trim(),
       modifyDate: item.modify_date?.[0] || '',
     }));
   }

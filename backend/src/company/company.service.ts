@@ -65,42 +65,60 @@ export class CompanyService {
     }
 
     if (financialData.length > 0) {
-      const revenue = financialData.find(
-        (item) => item.account_nm === '매출액' && item.fs_div === 'CFS',
-      );
-      const operatingProfit = financialData.find(
-        (item) => item.account_nm === '영업이익' && item.fs_div === 'CFS',
-      );
-      const netIncome = financialData.find(
-        (item) => item.account_nm === '당기순이익' && item.fs_div === 'CFS',
-      );
+      const existingFinancial = await this.em.findOne(Financial, {
+        company,
+        year: targetYear,
+        quarter: 4,
+      });
 
-      const financial = new Financial();
-      financial.company = company;
-      financial.year = targetYear;
-      financial.quarter = 4;
-      financial.revenue = revenue?.thstrm_amount?.replace(/,/g, '');
-      financial.operatingProfit =
-        operatingProfit?.thstrm_amount?.replace(/,/g, '');
-      financial.netIncome = netIncome?.thstrm_amount?.replace(/,/g, '');
+      if (!existingFinancial) {
+        const revenue = financialData.find(
+          (item) => item.account_nm === '매출액' && item.fs_div === 'CFS',
+        );
+        const operatingProfit = financialData.find(
+          (item) => item.account_nm === '영업이익' && item.fs_div === 'CFS',
+        );
+        const netIncome = financialData.find(
+          (item) => item.account_nm === '당기순이익' && item.fs_div === 'CFS',
+        );
 
-      await this.em.persistAndFlush(financial);
+        const financial = new Financial();
+        financial.company = company;
+        financial.year = targetYear;
+        financial.quarter = 4;
+        financial.revenue = revenue?.thstrm_amount?.replace(/,/g, '');
+        financial.operatingProfit =
+          operatingProfit?.thstrm_amount?.replace(/,/g, '');
+        financial.netIncome = netIncome?.thstrm_amount?.replace(/,/g, '');
+
+        await this.em.persistAndFlush(financial);
+      }
       results.financial = true;
     }
 
     if (company.stockCode) {
-      const stockInfo = await this.naverFinanceService.getStockInfo(
-        company.stockCode,
-      );
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
 
-      const stockData = new StockData();
-      stockData.company = company;
-      stockData.price = stockInfo.price ?? undefined;
-      stockData.per = stockInfo.per?.toString();
-      stockData.pbr = stockInfo.pbr?.toString();
-      stockData.foreignRatio = stockInfo.foreignRatio?.toString();
+      const existingStock = await this.em.findOne(StockData, {
+        company,
+        collectedAt: { $gte: today },
+      });
 
-      await this.em.persistAndFlush(stockData);
+      if (!existingStock) {
+        const stockInfo = await this.naverFinanceService.getStockInfo(
+          company.stockCode,
+        );
+
+        const stockData = new StockData();
+        stockData.company = company;
+        stockData.price = stockInfo.price ?? undefined;
+        stockData.per = stockInfo.per?.toString();
+        stockData.pbr = stockInfo.pbr?.toString();
+        stockData.foreignRatio = stockInfo.foreignRatio?.toString();
+
+        await this.em.persistAndFlush(stockData);
+      }
       results.stock = true;
     }
 
