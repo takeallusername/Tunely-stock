@@ -48,7 +48,7 @@ export class CompanyService {
     const userCompanies = await this.em.find(
       UserCompany,
       { userId },
-      { populate: ['company'] },
+      { populate: ['company', 'company.stockData', 'company.financials'] },
     );
     return userCompanies.map((uc) => uc.company);
   }
