@@ -18,8 +18,9 @@ export class CompanyService {
     return this.dartService.searchCompanyByName(name);
   }
 
-  async register(corpCode: string, corpName: string, stockCode?: string) {
+  async register(userId: string, corpCode: string, corpName: string, stockCode?: string) {
     const company = new Company();
+    company.userId = userId;
     company.corpCode = corpCode;
     company.corpName = corpName;
     company.stockCode = stockCode;
@@ -28,8 +29,8 @@ export class CompanyService {
     return company;
   }
 
-  async findAll() {
-    return this.em.find(Company, {});
+  async findAll(userId: string) {
+    return this.em.find(Company, { userId });
   }
 
   async findOne(id: number) {

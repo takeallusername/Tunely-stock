@@ -13,6 +13,9 @@ export class Company {
   @PrimaryKey()
   id!: number;
 
+  @Property({ length: 36 })
+  userId!: string;
+
   @Property({ length: 8 })
   corpCode!: string;
 

@@ -1,4 +1,7 @@
 import { defineConfig } from '@mikro-orm/mysql';
+import { config } from 'dotenv';
+
+config();
 
 export default defineConfig({
   host: process.env.DB_HOST,
