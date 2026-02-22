@@ -50,10 +50,19 @@ export class CompanyService {
     };
 
     const currentYear = new Date().getFullYear();
-    const financialData = await this.dartService.getFinancialStatements(
+    let targetYear = currentYear - 1;
+    let financialData = await this.dartService.getFinancialStatements(
       company.corpCode,
-      String(currentYear - 1),
+      String(targetYear),
     );
+
+    if (financialData.length === 0) {
+      targetYear = currentYear - 2;
+      financialData = await this.dartService.getFinancialStatements(
+        company.corpCode,
+        String(targetYear),
+      );
+    }
 
     if (financialData.length > 0) {
       const revenue = financialData.find(
@@ -68,7 +77,7 @@ export class CompanyService {
 
       const financial = new Financial();
       financial.company = company;
-      financial.year = currentYear - 1;
+      financial.year = targetYear;
       financial.quarter = 4;
       financial.revenue = revenue?.thstrm_amount?.replace(/,/g, '');
       financial.operatingProfit =
