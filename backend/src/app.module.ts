@@ -4,6 +4,7 @@ import { MikroOrmModule } from '@mikro-orm/nestjs';
 import mikroOrmConfig from './common/config/mikro-orm.config';
 import { DartModule } from './dart/dart.module';
 import { CrawlerModule } from './crawler/crawler.module';
+import { CompanyModule } from './company/company.module';
 
 @Module({
   imports: [
@@ -13,6 +14,7 @@ import { CrawlerModule } from './crawler/crawler.module';
     MikroOrmModule.forRoot(mikroOrmConfig),
     DartModule,
     CrawlerModule,
+    CompanyModule,
   ],
   controllers: [],
   providers: [],
