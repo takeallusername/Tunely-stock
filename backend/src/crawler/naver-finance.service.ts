@@ -9,9 +9,19 @@ export interface StockInfo {
   foreignRatio: number | null;
 }
 
+export interface StockHistoryItem {
+  date: Date;
+  close: number;
+  open: number;
+  high: number;
+  low: number;
+  volume: string;
+}
+
 @Injectable()
 export class NaverFinanceService {
   private readonly baseUrl = 'https://finance.naver.com/item/main.naver';
+  private readonly historyUrl = 'https://finance.naver.com/item/sise_day.naver';
 
   async getStockInfo(stockCode: string): Promise<StockInfo> {
     const response = await axios.get(this.baseUrl, {
@@ -67,5 +77,45 @@ export class NaverFinanceService {
     });
 
     return foreignRatio;
+  }
+
+  async getStockHistory(stockCode: string, pages: number = 5): Promise<StockHistoryItem[]> {
+    const results: StockHistoryItem[] = [];
+    const headers = {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+    };
+
+    for (let page = 1; page <= pages; page++) {
+      const response = await axios.get(this.historyUrl, {
+        params: { code: stockCode, page },
+        headers,
+      });
+
+      const $ = cheerio.load(response.data);
+      const rows = $('table.type2 tr');
+
+      rows.each((_, row) => {
+        const tds = $(row).find('td');
+        if (tds.length < 7) return;
+
+        const dateText = $(tds[0]).text().trim();
+        if (!dateText || !dateText.match(/\d{4}\.\d{2}\.\d{2}/)) return;
+
+        const [year, month, day] = dateText.split('.').map(Number);
+        const date = new Date(year, month - 1, day);
+
+        const close = parseInt($(tds[1]).text().replace(/,/g, ''), 10);
+        const open = parseInt($(tds[3]).text().replace(/,/g, ''), 10);
+        const high = parseInt($(tds[4]).text().replace(/,/g, ''), 10);
+        const low = parseInt($(tds[5]).text().replace(/,/g, ''), 10);
+        const volume = $(tds[6]).text().replace(/,/g, '').trim();
+
+        if (!isNaN(close) && !isNaN(open) && !isNaN(high) && !isNaN(low)) {
+          results.push({ date, close, open, high, low, volume });
+        }
+      });
+    }
+
+    return results.sort((a, b) => a.date.getTime() - b.date.getTime());
   }
 }

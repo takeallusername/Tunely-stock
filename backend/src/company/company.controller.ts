@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Query, Headers } from '@nestjs/common';
+import { Controller, Get, Post, Delete, Body, Param, Query, Headers } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiHeader } from '@nestjs/swagger';
 import { CompanyService } from './company.service';
 import { CreateCompanyDto } from './dto/create-company.dto';
@@ -40,5 +40,14 @@ export class CompanyController {
   @ApiOperation({ summary: '데이터 수집' })
   async collect(@Param('id') id: string) {
     return this.companyService.collect(Number(id));
+  }
+
+  @Delete(':id')
+  @ApiOperation({ summary: '기업 삭제' })
+  async delete(
+    @Headers('x-user-id') userId: string,
+    @Param('id') id: string,
+  ) {
+    return this.companyService.delete(Number(id), userId);
   }
 }

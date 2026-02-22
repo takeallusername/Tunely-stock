@@ -12,4 +12,5 @@ export default defineConfig({
   entities: ['dist/**/*.entity.js'],
   entitiesTs: ['src/**/*.entity.ts'],
   debug: process.env.NODE_ENV === 'development',
+  allowGlobalContext: true,
 });

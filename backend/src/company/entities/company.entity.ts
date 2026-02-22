@@ -7,6 +7,7 @@ import {
 } from '@mikro-orm/core';
 import { Financial } from '../../financial/entities/financial.entity';
 import { StockData } from '../../stock/entities/stock-data.entity';
+import { StockHistory } from '../../stock/entities/stock-history.entity';
 
 @Entity({ tableName: 'companies' })
 export class Company {
@@ -33,4 +34,7 @@ export class Company {
 
   @OneToMany(() => StockData, (stockData) => stockData.company)
   stockData = new Collection<StockData>(this);
+
+  @OneToMany(() => StockHistory, (stockHistory) => stockHistory.company)
+  stockHistory = new Collection<StockHistory>(this);
 }

@@ -6,7 +6,7 @@ export class Financial {
   @PrimaryKey()
   id!: number;
 
-  @ManyToOne(() => Company)
+  @ManyToOne(() => Company, { deleteRule: 'cascade' })
   company!: Company;
 
   @Property()

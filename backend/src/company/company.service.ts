@@ -3,6 +3,7 @@ import { EntityManager } from '@mikro-orm/mysql';
 import { Company } from './entities/company.entity';
 import { Financial } from '../financial/entities/financial.entity';
 import { StockData } from '../stock/entities/stock-data.entity';
+import { StockHistory } from '../stock/entities/stock-history.entity';
 import { DartService } from '../dart/dart.service';
 import { NaverFinanceService } from '../crawler/naver-finance.service';
 
@@ -37,8 +38,24 @@ export class CompanyService {
     return this.em.findOne(
       Company,
       { id },
-      { populate: ['financials', 'stockData'] },
+      {
+        populate: ['financials', 'stockData', 'stockHistory'],
+        populateOrderBy: {
+          stockHistory: { date: 'asc' },
+          financials: { year: 'desc', quarter: 'desc' },
+          stockData: { collectedAt: 'desc' },
+        },
+      },
     );
+  }
+
+  async delete(id: number, userId: string) {
+    const company = await this.em.findOne(Company, { id, userId });
+    if (!company) {
+      return null;
+    }
+    await this.em.removeAndFlush(company);
+    return { deleted: true };
   }
 
   async collect(id: number) {
@@ -47,31 +64,36 @@ export class CompanyService {
     const results = {
       financial: false,
       stock: false,
+      history: false,
     };
 
     const currentYear = new Date().getFullYear();
-    let targetYear = currentYear - 1;
-    let financialData = await this.dartService.getFinancialStatements(
-      company.corpCode,
-      String(targetYear),
-    );
+    const yearsToCollect = Array.from({ length: 20 }, (_, i) => currentYear - 1 - i);
+    const quarters = [
+      { quarter: 1, reportCode: '11013' },
+      { quarter: 2, reportCode: '11012' },
+      { quarter: 3, reportCode: '11014' },
+      { quarter: 4, reportCode: '11011' },
+    ];
 
-    if (financialData.length === 0) {
-      targetYear = currentYear - 2;
-      financialData = await this.dartService.getFinancialStatements(
-        company.corpCode,
-        String(targetYear),
-      );
-    }
+    for (const targetYear of yearsToCollect) {
+      for (const { quarter, reportCode } of quarters) {
+        const existingFinancial = await this.em.findOne(Financial, {
+          company,
+          year: targetYear,
+          quarter,
+        });
 
-    if (financialData.length > 0) {
-      const existingFinancial = await this.em.findOne(Financial, {
-        company,
-        year: targetYear,
-        quarter: 4,
-      });
+        if (existingFinancial) continue;
 
-      if (!existingFinancial) {
+        const financialData = await this.dartService.getFinancialStatements(
+          company.corpCode,
+          String(targetYear),
+          reportCode,
+        );
+
+        if (financialData.length === 0) continue;
+
         const revenue = financialData.find(
           (item) => item.account_nm === '매출액' && item.fs_div === 'CFS',
         );
@@ -85,16 +107,18 @@ export class CompanyService {
         const financial = new Financial();
         financial.company = company;
         financial.year = targetYear;
-        financial.quarter = 4;
+        financial.quarter = quarter;
         financial.revenue = revenue?.thstrm_amount?.replace(/,/g, '');
         financial.operatingProfit =
           operatingProfit?.thstrm_amount?.replace(/,/g, '');
         financial.netIncome = netIncome?.thstrm_amount?.replace(/,/g, '');
 
-        await this.em.persistAndFlush(financial);
+        this.em.persist(financial);
+        results.financial = true;
       }
-      results.financial = true;
     }
+
+    await this.em.flush();
 
     if (company.stockCode) {
       const today = new Date();
@@ -120,6 +144,33 @@ export class CompanyService {
         await this.em.persistAndFlush(stockData);
       }
       results.stock = true;
+
+      const historyData = await this.naverFinanceService.getStockHistory(
+        company.stockCode,
+        600,
+      );
+
+      for (const item of historyData) {
+        const existing = await this.em.findOne(StockHistory, {
+          company,
+          date: item.date,
+        });
+
+        if (!existing) {
+          const history = new StockHistory();
+          history.company = company;
+          history.date = item.date;
+          history.open = item.open;
+          history.high = item.high;
+          history.low = item.low;
+          history.close = item.close;
+          history.volume = item.volume;
+          this.em.persist(history);
+        }
+      }
+
+      await this.em.flush();
+      results.history = true;
     }
 
     return results;
