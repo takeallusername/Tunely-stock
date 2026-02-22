@@ -38,6 +38,7 @@
     "@nestjs/config": "^4.0.3",
     "@nestjs/core": "^11.0.1",
     "@nestjs/platform-express": "^11.0.1",
+    "@nestjs/swagger": "^11.2.6",
     "adm-zip": "^0.5.16",
     "axios": "^1.13.5",
     "cheerio": "^1.2.0",
