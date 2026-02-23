@@ -43,3 +43,4 @@ jobs:
             pm2 save --force
             pm2 start dist/src/main.js --name tunely-backend
             pm2 save
+            sudo systemctl reload nginx
