@@ -40,5 +40,5 @@ jobs:
             npm run build
             npx mikro-orm schema:update --run
             pm2 delete tunely-backend || true
-            pm2 start dist/src/main.js --name tunely-backend
+            pm2 start dist/src/main.js --name tunely-backend --cwd /home/ubuntu/tunely/backend
             pm2 save
