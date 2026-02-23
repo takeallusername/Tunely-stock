@@ -1,8 +1,11 @@
-import { Entity, PrimaryKey, Property, ManyToOne } from '@mikro-orm/core';
+import { Entity, PrimaryKey, Property, ManyToOne, OptionalProps } from '@mikro-orm/core';
 import { Company } from '../../company/entities/company.entity';
+import { FinancialRepository } from '../repositories/financial.repository';
 
-@Entity({ tableName: 'financials' })
+@Entity({ tableName: 'financials', repository: () => FinancialRepository })
 export class Financial {
+  [OptionalProps]?: 'collectedAt';
+
   @PrimaryKey()
   id!: number;
 
@@ -24,6 +27,6 @@ export class Financial {
   @Property({ type: 'bigint', nullable: true })
   netIncome?: string;
 
-  @Property()
-  collectedAt: Date = new Date();
+  @Property({ onCreate: () => new Date() })
+  collectedAt!: Date;
 }

@@ -1,8 +1,11 @@
-import { Entity, PrimaryKey, Property, ManyToOne } from '@mikro-orm/core';
+import { Entity, PrimaryKey, Property, ManyToOne, OptionalProps } from '@mikro-orm/core';
 import { Company } from '../../company/entities/company.entity';
+import { StockDataRepository } from '../repositories/stock-data.repository';
 
-@Entity({ tableName: 'stock_data' })
+@Entity({ tableName: 'stock_data', repository: () => StockDataRepository })
 export class StockData {
+  [OptionalProps]?: 'collectedAt';
+
   @PrimaryKey()
   id!: number;
 
@@ -21,6 +24,6 @@ export class StockData {
   @Property({ type: 'decimal', precision: 5, scale: 2, nullable: true })
   foreignRatio?: string;
 
-  @Property()
-  collectedAt: Date = new Date();
+  @Property({ onCreate: () => new Date() })
+  collectedAt!: Date;
 }

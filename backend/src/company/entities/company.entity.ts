@@ -5,15 +5,19 @@ import {
   OneToMany,
   Collection,
   Unique,
+  OptionalProps,
 } from '@mikro-orm/core';
 import { Financial } from '../../financial/entities/financial.entity';
 import { StockData } from '../../stock/entities/stock-data.entity';
-import { StockHistory } from '../../stock/entities/stock-history.entity';
+import { StockHistory} from '../../stock/entities/stock-history.entity';
 import { UserCompany } from '../../user-company/entities/user-company.entity';
+import { CompanyRepository } from '../repositories/company.repository';
 
-@Entity({ tableName: 'companies' })
+@Entity({ tableName: 'companies', repository: () => CompanyRepository })
 @Unique({ properties: ['corpCode'] })
 export class Company {
+  [OptionalProps]?: 'createdAt';
+
   @PrimaryKey()
   id!: number;
 
@@ -26,8 +30,8 @@ export class Company {
   @Property({ length: 6, nullable: true })
   stockCode?: string;
 
-  @Property()
-  createdAt: Date = new Date();
+  @Property({ onCreate: () => new Date() })
+  createdAt!: Date;
 
   @OneToMany(() => Financial, (financial) => financial.company)
   financials = new Collection<Financial>(this);

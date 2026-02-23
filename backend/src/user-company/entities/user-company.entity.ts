@@ -1,9 +1,12 @@
-import { Entity, PrimaryKey, Property, ManyToOne, Unique } from '@mikro-orm/core';
+import { Entity, PrimaryKey, Property, ManyToOne, Unique, OptionalProps } from '@mikro-orm/core';
 import { Company } from '../../company/entities/company.entity';
+import { UserCompanyRepository } from '../repositories/user-company.repository';
 
-@Entity({ tableName: 'user_companies' })
+@Entity({ tableName: 'user_companies', repository: () => UserCompanyRepository })
 @Unique({ properties: ['userId', 'company'] })
 export class UserCompany {
+  [OptionalProps]?: 'createdAt';
+
   @PrimaryKey()
   id!: number;
 
@@ -13,6 +16,6 @@ export class UserCompany {
   @ManyToOne(() => Company, { deleteRule: 'cascade' })
   company!: Company;
 
-  @Property()
-  createdAt: Date = new Date();
+  @Property({ onCreate: () => new Date() })
+  createdAt!: Date;
 }

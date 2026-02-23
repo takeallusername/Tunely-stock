@@ -1,16 +1,32 @@
 import { Injectable } from '@nestjs/common';
-import { EntityManager } from '@mikro-orm/mysql';
+import { InjectRepository } from '@mikro-orm/nestjs';
 import { Company } from './entities/company.entity';
 import { UserCompany } from '../user-company/entities/user-company.entity';
 import { Financial } from '../financial/entities/financial.entity';
 import { StockData } from '../stock/entities/stock-data.entity';
 import { StockHistory } from '../stock/entities/stock-history.entity';
+import { CompanyRepository } from './repositories/company.repository';
+import { UserCompanyRepository } from '../user-company/repositories/user-company.repository';
+import { FinancialRepository } from '../financial/repositories/financial.repository';
+import { StockDataRepository } from '../stock/repositories/stock-data.repository';
+import { StockHistoryRepository } from '../stock/repositories/stock-history.repository';
 import { DartService } from '../dart/dart.service';
 import { NaverFinanceService } from '../crawler/naver-finance.service';
+import { EntityManager } from '@mikro-orm/mysql';
 
 @Injectable()
 export class CompanyService {
   constructor(
+    @InjectRepository(Company)
+    private readonly companyRepo: CompanyRepository,
+    @InjectRepository(UserCompany)
+    private readonly userCompanyRepo: UserCompanyRepository,
+    @InjectRepository(Financial)
+    private readonly financialRepo: FinancialRepository,
+    @InjectRepository(StockData)
+    private readonly stockDataRepo: StockDataRepository,
+    @InjectRepository(StockHistory)
+    private readonly stockHistoryRepo: StockHistoryRepository,
     private readonly em: EntityManager,
     private readonly dartService: DartService,
     private readonly naverFinanceService: NaverFinanceService,
@@ -21,28 +37,30 @@ export class CompanyService {
   }
 
   async register(userId: string, corpCode: string, corpName: string, stockCode?: string) {
-    let company = await this.em.findOne(Company, { corpCode });
+    let company = await this.companyRepo.findByCorpCode(corpCode);
     let isNewCompany = false;
 
     if (!company) {
-      company = new Company();
-      company.corpCode = corpCode;
-      company.corpName = corpName;
-      company.stockCode = stockCode;
-      this.em.persist(company);
+      company = this.em.create(Company, {
+        corpCode,
+        corpName,
+        stockCode,
+      });
+      this.companyRepo.persist(company);
       isNewCompany = true;
     }
 
-    const existingLink = await this.em.findOne(UserCompany, { userId, company });
+    const existingLink = await this.userCompanyRepo.findByUserAndCompany(userId, company);
     if (existingLink) {
       return company;
     }
 
-    const userCompany = new UserCompany();
-    userCompany.userId = userId;
-    userCompany.company = company;
+    const userCompany = this.em.create(UserCompany, {
+      userId,
+      company,
+    });
 
-    await this.em.persistAndFlush(userCompany);
+    await this.em.flush();
 
     if (isNewCompany) {
       await this.collect(company.id);
@@ -58,36 +76,22 @@ export class CompanyService {
   }
 
   async findAll(userId: string): Promise<Company[]> {
-    const userCompanies = await this.em.find(
-      UserCompany,
-      { userId },
-      { populate: ['company', 'company.stockData', 'company.financials'] },
-    );
+    const userCompanies = await this.userCompanyRepo.findByUserId(userId);
     return userCompanies.map((uc) => uc.company);
   }
 
   async findOne(id: number) {
-    return this.em.findOne(
-      Company,
-      { id },
-      {
-        populate: ['financials', 'stockData'],
-        populateOrderBy: {
-          financials: { year: 'desc', quarter: 'desc' },
-          stockData: { collectedAt: 'desc' },
-        },
-      },
-    );
+    return this.companyRepo.findByIdWithRelations(id);
   }
 
   async getQuarterDetail(id: number, year: number, quarter: number) {
-    const company = await this.em.findOneOrFail(Company, { id });
+    const company = await this.companyRepo.findOneOrFail({ id });
 
-    const financial = await this.em.findOne(Financial, {
+    const financial = await this.financialRepo.findByCompanyYearQuarter(
       company,
       year,
       quarter,
-    });
+    );
 
     if (!company.stockCode) {
       return { financial, stockHistory: [] };
@@ -99,32 +103,26 @@ export class CompanyService {
     const startDate = new Date(year, quarterStartMonth - 1, 1);
     const endDate = new Date(year, quarterEndMonth, 0);
 
-    const stockHistory = await this.em.find(
-      StockHistory,
-      {
-        company,
-        date: {
-          $gte: startDate,
-          $lte: endDate,
-        },
-      },
-      { orderBy: { date: 'asc' } },
+    const stockHistory = await this.stockHistoryRepo.findByCompanyAndDateRange(
+      company,
+      startDate,
+      endDate,
     );
 
     return { financial, stockHistory };
   }
 
   async delete(id: number, userId: string) {
-    const userCompany = await this.em.findOne(UserCompany, { userId, company: { id } });
+    const userCompany = await this.userCompanyRepo.findByUserAndCompanyId(userId, id);
     if (!userCompany) {
       return null;
     }
-    await this.em.removeAndFlush(userCompany);
+    await this.userCompanyRepo.removeAndFlush(userCompany);
     return { deleted: true };
   }
 
   async collect(id: number) {
-    const company = await this.em.findOneOrFail(Company, { id });
+    const company = await this.companyRepo.findOneOrFail({ id });
 
     const results = {
       financial: false,
@@ -143,11 +141,11 @@ export class CompanyService {
 
     for (const targetYear of yearsToCollect) {
       for (const { quarter, reportCode } of quarters) {
-        const existingFinancial = await this.em.findOne(Financial, {
+        const existingFinancial = await this.financialRepo.findByCompanyYearQuarter(
           company,
-          year: targetYear,
+          targetYear,
           quarter,
-        });
+        );
 
         if (existingFinancial) continue;
 
@@ -169,16 +167,16 @@ export class CompanyService {
           (item) => item.account_nm === '당기순이익' && item.fs_div === 'CFS',
         );
 
-        const financial = new Financial();
-        financial.company = company;
-        financial.year = targetYear;
-        financial.quarter = quarter;
-        financial.revenue = revenue?.thstrm_amount?.replace(/,/g, '');
-        financial.operatingProfit =
-          operatingProfit?.thstrm_amount?.replace(/,/g, '');
-        financial.netIncome = netIncome?.thstrm_amount?.replace(/,/g, '');
+        const financial = this.em.create(Financial, {
+          company,
+          year: targetYear,
+          quarter,
+          revenue: revenue?.thstrm_amount?.replace(/,/g, ''),
+          operatingProfit: operatingProfit?.thstrm_amount?.replace(/,/g, ''),
+          netIncome: netIncome?.thstrm_amount?.replace(/,/g, ''),
+        });
 
-        this.em.persist(financial);
+        this.financialRepo.persist(financial);
         results.financial = true;
       }
     }
@@ -186,27 +184,22 @@ export class CompanyService {
     await this.em.flush();
 
     if (company.stockCode) {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-
-      const existingStock = await this.em.findOne(StockData, {
-        company,
-        collectedAt: { $gte: today },
-      });
+      const existingStock = await this.stockDataRepo.findTodayData(company);
 
       if (!existingStock) {
         const stockInfo = await this.naverFinanceService.getStockInfo(
           company.stockCode,
         );
 
-        const stockData = new StockData();
-        stockData.company = company;
-        stockData.price = stockInfo.price ?? undefined;
-        stockData.per = stockInfo.per?.toString();
-        stockData.pbr = stockInfo.pbr?.toString();
-        stockData.foreignRatio = stockInfo.foreignRatio?.toString();
+        const stockData = this.em.create(StockData, {
+          company,
+          price: stockInfo.price ?? undefined,
+          per: stockInfo.per?.toString(),
+          pbr: stockInfo.pbr?.toString(),
+          foreignRatio: stockInfo.foreignRatio?.toString(),
+        });
 
-        await this.em.persistAndFlush(stockData);
+        await this.stockDataRepo.persistAndFlush(stockData);
       }
       results.stock = true;
 
@@ -216,21 +209,22 @@ export class CompanyService {
       );
 
       for (const item of historyData) {
-        const existing = await this.em.findOne(StockHistory, {
+        const existing = await this.stockHistoryRepo.findByCompanyAndDate(
           company,
-          date: item.date,
-        });
+          item.date,
+        );
 
         if (!existing) {
-          const history = new StockHistory();
-          history.company = company;
-          history.date = item.date;
-          history.open = item.open;
-          history.high = item.high;
-          history.low = item.low;
-          history.close = item.close;
-          history.volume = item.volume;
-          this.em.persist(history);
+          const history = this.em.create(StockHistory, {
+            company,
+            date: item.date,
+            open: item.open,
+            high: item.high,
+            low: item.low,
+            close: item.close,
+            volume: item.volume,
+          });
+          this.stockHistoryRepo.persist(history);
         }
       }
 

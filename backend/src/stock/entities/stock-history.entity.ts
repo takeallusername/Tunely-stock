@@ -1,7 +1,8 @@
 import { Entity, PrimaryKey, Property, ManyToOne, Unique } from '@mikro-orm/core';
 import { Company } from '../../company/entities/company.entity';
+import { StockHistoryRepository } from '../repositories/stock-history.repository';
 
-@Entity({ tableName: 'stock_history' })
+@Entity({ tableName: 'stock_history', repository: () => StockHistoryRepository })
 @Unique({ properties: ['company', 'date'] })
 export class StockHistory {
   @PrimaryKey()
