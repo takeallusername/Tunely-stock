@@ -39,5 +39,6 @@ jobs:
             npm ci
             npm run build
             npx mikro-orm schema:update --run
-            pm2 restart tunely-backend || pm2 start dist/src/main.js --name tunely-backend
+            pm2 delete tunely-backend || true
+            pm2 start dist/src/main.js --name tunely-backend
             pm2 save
