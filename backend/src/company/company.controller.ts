@@ -36,6 +36,20 @@ export class CompanyController {
     return this.companyService.findOne(Number(id));
   }
 
+  @Get(':id/quarter-detail')
+  @ApiOperation({ summary: '분기별 상세 조회' })
+  async getQuarterDetail(
+    @Param('id') id: string,
+    @Query('year') year: string,
+    @Query('quarter') quarter: string,
+  ) {
+    return this.companyService.getQuarterDetail(
+      Number(id),
+      Number(year),
+      Number(quarter),
+    );
+  }
+
   @Post(':id/collect')
   @ApiOperation({ summary: '데이터 수집' })
   async collect(@Param('id') id: string) {

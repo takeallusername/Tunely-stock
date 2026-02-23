@@ -58,14 +58,47 @@ export class CompanyService {
       Company,
       { id },
       {
-        populate: ['financials', 'stockData', 'stockHistory'],
+        populate: ['financials', 'stockData'],
         populateOrderBy: {
-          stockHistory: { date: 'asc' },
           financials: { year: 'desc', quarter: 'desc' },
           stockData: { collectedAt: 'desc' },
         },
       },
     );
+  }
+
+  async getQuarterDetail(id: number, year: number, quarter: number) {
+    const company = await this.em.findOneOrFail(Company, { id });
+
+    const financial = await this.em.findOne(Financial, {
+      company,
+      year,
+      quarter,
+    });
+
+    if (!company.stockCode) {
+      return { financial, stockHistory: [] };
+    }
+
+    const quarterStartMonth = (quarter - 1) * 3 + 1;
+    const quarterEndMonth = quarter * 3;
+
+    const startDate = new Date(year, quarterStartMonth - 1, 1);
+    const endDate = new Date(year, quarterEndMonth, 0);
+
+    const stockHistory = await this.em.find(
+      StockHistory,
+      {
+        company,
+        date: {
+          $gte: startDate,
+          $lte: endDate,
+        },
+      },
+      { orderBy: { date: 'asc' } },
+    );
+
+    return { financial, stockHistory };
   }
 
   async delete(id: number, userId: string) {
