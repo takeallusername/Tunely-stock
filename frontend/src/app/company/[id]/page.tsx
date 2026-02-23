@@ -1,17 +1,16 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { api, getSessionToken } from '@/lib/api';
 import { toErrorMessage, formatNumber, formatCurrency, formatDate } from '@/lib/utils';
-import type { Company } from '@/lib/types';
+import type { Company, Financial, StockHistory } from '@/lib/types';
 import {
   ArrowLeftIcon,
   TrendingUpIcon,
   ChartIcon,
-  DatabaseIcon,
   AlertIcon,
   HashIcon,
   TagIcon,
@@ -24,6 +23,11 @@ import {
   ArrowTrendingUpIcon,
 } from '@/components/icons';
 
+type QuarterDetail = {
+  financial: Financial | null;
+  stockHistory: StockHistory[];
+};
+
 export default function CompanyDetail() {
   const params = useParams();
   const router = useRouter();
@@ -32,9 +36,10 @@ export default function CompanyDetail() {
   const [isReady, setIsReady] = useState(false);
   const [company, setCompany] = useState<Company | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isCollecting, setIsCollecting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [periodFilter, setPeriodFilter] = useState<'1y' | '5y' | '10y' | 'all'>('1y');
+  const [selectedQuarter, setSelectedQuarter] = useState<{ year: number; quarter: number } | null>(null);
+  const [quarterDetail, setQuarterDetail] = useState<QuarterDetail | null>(null);
+  const [isLoadingDetail, setIsLoadingDetail] = useState(false);
 
   const loadCompany = useCallback(async () => {
     if (!companyId) return;
@@ -61,57 +66,27 @@ export default function CompanyDetail() {
     }
   }, [isReady, loadCompany]);
 
-  async function handleCollect() {
-    if (!isReady || !companyId) return;
-    setIsCollecting(true);
+  async function handleViewQuarter(year: number, quarter: number) {
+    setSelectedQuarter({ year, quarter });
+    setIsLoadingDetail(true);
     setErrorMessage(null);
     try {
-      await api.collectData(companyId);
-      await loadCompany();
+      const data = await api.getQuarterDetail(companyId, year, quarter);
+      setQuarterDetail(data);
     } catch (err) {
       setErrorMessage(toErrorMessage(err));
     } finally {
-      setIsCollecting(false);
+      setIsLoadingDetail(false);
     }
+  }
+
+  function closeModal() {
+    setSelectedQuarter(null);
+    setQuarterDetail(null);
   }
 
   const latestFinancial = company?.financials?.[0];
   const latestStock = company?.stockData?.[0];
-
-  const filteredData = useMemo(() => {
-    if (!company) return { financials: [], stockHistory: [] };
-
-    const now = new Date();
-    const cutoffDate = new Date();
-    const cutoffYear = now.getFullYear();
-
-    switch (periodFilter) {
-      case '1y':
-        cutoffDate.setFullYear(cutoffDate.getFullYear() - 1);
-        break;
-      case '5y':
-        cutoffDate.setFullYear(cutoffDate.getFullYear() - 5);
-        break;
-      case '10y':
-        cutoffDate.setFullYear(cutoffDate.getFullYear() - 10);
-        break;
-      case 'all':
-        cutoffDate.setFullYear(1900);
-        break;
-    }
-
-    const yearLimit = periodFilter === '1y' ? 1 : periodFilter === '5y' ? 5 : periodFilter === '10y' ? 10 : 100;
-
-    const financials = (company.financials ?? []).filter(
-      (f) => f.year >= cutoffYear - yearLimit
-    );
-
-    const stockHistory = (company.stockHistory ?? []).filter(
-      (h) => new Date(h.date) >= cutoffDate
-    );
-
-    return { financials, stockHistory };
-  }, [company, periodFilter]);
 
   if (isLoading) {
     return (
@@ -150,20 +125,6 @@ export default function CompanyDetail() {
               <span className="header-subtitle">{company.stockCode || company.corpCode}</span>
             </div>
           </div>
-          <button
-            className="btn btn-primary"
-            disabled={isCollecting || !isReady}
-            onClick={() => void handleCollect()}
-          >
-            {isCollecting ? (
-              <span className="loading-spinner" />
-            ) : (
-              <>
-                <DatabaseIcon style={{ width: 14, height: 14 }} />
-                데이터 수집
-              </>
-            )}
-          </button>
         </div>
       </header>
 
@@ -177,91 +138,15 @@ export default function CompanyDetail() {
 
         <div className="detail-grid">
           <div className="detail-main">
-            <div className="period-filter">
-              {(['1y', '5y', '10y', 'all'] as const).map((period) => (
-                <button
-                  key={period}
-                  className={`period-btn ${periodFilter === period ? 'active' : ''}`}
-                  onClick={() => setPeriodFilter(period)}
-                >
-                  {period === '1y' ? '1년' : period === '5y' ? '5년' : period === '10y' ? '10년' : '전체'}
-                </button>
-              ))}
-            </div>
-
-            {filteredData.stockHistory.length > 0 && (
-              <div className="data-section fade-in">
-                <div className="data-section-header">
-                  <h3 className="data-section-title">
-                    <TrendingUpIcon style={{ width: 14, height: 14, color: 'var(--text-tertiary)' }} />
-                    주가 추이
-                  </h3>
-                  <span className="data-count">{filteredData.stockHistory.length}일</span>
-                </div>
-                <div style={{ padding: '16px 20px', height: 320 }}>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart
-                      data={filteredData.stockHistory.map((h) => {
-                        const d = new Date(h.date);
-                        const useYearFormat = periodFilter === '10y' || periodFilter === 'all';
-                        return {
-                          date: useYearFormat
-                            ? d.toLocaleDateString('ko-KR', { year: '2-digit', month: 'short' })
-                            : d.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' }),
-                          fullDate: d.toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' }),
-                          close: h.close,
-                        };
-                      })}
-                    >
-                      <XAxis
-                        dataKey="date"
-                        tick={{ fill: 'var(--text-tertiary)', fontSize: 11 }}
-                        axisLine={{ stroke: 'var(--border-subtle)' }}
-                        tickLine={false}
-                        interval={Math.max(0, Math.floor(filteredData.stockHistory.length / 8) - 1)}
-                      />
-                      <YAxis
-                        domain={['auto', 'auto']}
-                        tick={{ fill: 'var(--text-tertiary)', fontSize: 11 }}
-                        axisLine={false}
-                        tickLine={false}
-                        tickFormatter={(v) => formatNumber(v)}
-                        width={70}
-                      />
-                      <Tooltip
-                        contentStyle={{
-                          background: 'var(--bg-elevated)',
-                          border: '1px solid var(--border-default)',
-                          borderRadius: 8,
-                          fontSize: 12,
-                        }}
-                        labelStyle={{ color: 'var(--text-secondary)' }}
-                        labelFormatter={(_, payload) => payload[0]?.payload?.fullDate ?? ''}
-                        formatter={(value) => [`${formatNumber(value as number)}원`, '종가']}
-                      />
-                      <Line
-                        type="monotone"
-                        dataKey="close"
-                        stroke="var(--accent-cyan)"
-                        strokeWidth={2}
-                        dot={false}
-                        activeDot={{ r: 4, fill: 'var(--accent-cyan)' }}
-                      />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-            )}
-
             <div className="data-section fade-in">
               <div className="data-section-header">
                 <h3 className="data-section-title">
                   <ChartIcon style={{ width: 14, height: 14, color: 'var(--text-tertiary)' }} />
                   재무 데이터
                 </h3>
-                <span className="data-count">{filteredData.financials.length}</span>
+                <span className="data-count">{company.financials?.length ?? 0}</span>
               </div>
-              {filteredData.financials.length === 0 ? (
+              {(company.financials?.length ?? 0) === 0 ? (
                 <div className="empty-state">
                   <p className="empty-text">수집된 재무 데이터가 없습니다</p>
                 </div>
@@ -274,10 +159,11 @@ export default function CompanyDetail() {
                       <th style={{ textAlign: 'right' }}>영업이익</th>
                       <th style={{ textAlign: 'right' }}>당기순이익</th>
                       <th>수집일</th>
+                      <th></th>
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredData.financials.map((f) => (
+                    {company.financials?.map((f) => (
                       <tr key={f.id}>
                         <td className="mono">
                           {f.year}년 {f.quarter}Q
@@ -286,6 +172,15 @@ export default function CompanyDetail() {
                         <td className="number">{formatCurrency(f.operatingProfit)}</td>
                         <td className="number">{formatCurrency(f.netIncome)}</td>
                         <td className="date">{formatDate(f.collectedAt)}</td>
+                        <td>
+                          <button
+                            className="btn btn-ghost"
+                            onClick={() => handleViewQuarter(f.year, f.quarter)}
+                            style={{ fontSize: 12, padding: '4px 12px' }}
+                          >
+                            상세보기 →
+                          </button>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -433,6 +328,106 @@ export default function CompanyDetail() {
           </div>
         </div>
       </main>
+
+      {selectedQuarter && (
+        <div className="modal-overlay" onClick={closeModal}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>
+                {selectedQuarter.year}년 {selectedQuarter.quarter}분기 상세
+              </h2>
+              <button className="btn btn-ghost btn-icon" onClick={closeModal}>
+                ✕
+              </button>
+            </div>
+            <div className="modal-body">
+              {isLoadingDetail ? (
+                <div style={{ textAlign: 'center', padding: '40px' }}>
+                  <span className="loading-spinner" style={{ width: 24, height: 24 }} />
+                </div>
+              ) : quarterDetail ? (
+                <>
+                  {quarterDetail.stockHistory.length > 0 && (
+                    <div style={{ marginBottom: 24 }}>
+                      <h3 style={{ fontSize: 14, marginBottom: 12, color: 'var(--text-secondary)' }}>
+                        주가 추이
+                      </h3>
+                      <div style={{ height: 280 }}>
+                        <ResponsiveContainer width="100%" height="100%">
+                          <LineChart
+                            data={quarterDetail.stockHistory.map((h) => ({
+                              date: new Date(h.date).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' }),
+                              fullDate: new Date(h.date).toLocaleDateString('ko-KR'),
+                              close: h.close,
+                            }))}
+                          >
+                            <XAxis
+                              dataKey="date"
+                              tick={{ fill: 'var(--text-tertiary)', fontSize: 11 }}
+                              axisLine={{ stroke: 'var(--border-subtle)' }}
+                              tickLine={false}
+                            />
+                            <YAxis
+                              domain={['auto', 'auto']}
+                              tick={{ fill: 'var(--text-tertiary)', fontSize: 11 }}
+                              axisLine={false}
+                              tickLine={false}
+                              tickFormatter={(v) => formatNumber(v)}
+                              width={70}
+                            />
+                            <Tooltip
+                              contentStyle={{
+                                background: 'var(--bg-elevated)',
+                                border: '1px solid var(--border-default)',
+                                borderRadius: 8,
+                                fontSize: 12,
+                              }}
+                              labelStyle={{ color: 'var(--text-secondary)' }}
+                              labelFormatter={(_, payload) => payload[0]?.payload?.fullDate ?? ''}
+                              formatter={(value) => [`${formatNumber(value as number)}원`, '종가']}
+                            />
+                            <Line
+                              type="monotone"
+                              dataKey="close"
+                              stroke="var(--accent-cyan)"
+                              strokeWidth={2}
+                              dot={false}
+                              activeDot={{ r: 4, fill: 'var(--accent-cyan)' }}
+                            />
+                          </LineChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </div>
+                  )}
+                  {quarterDetail.financial && (
+                    <div>
+                      <h3 style={{ fontSize: 14, marginBottom: 12, color: 'var(--text-secondary)' }}>
+                        재무 정보
+                      </h3>
+                      <dl style={{ display: 'grid', gap: 12 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <dt style={{ color: 'var(--text-secondary)' }}>매출액</dt>
+                          <dd style={{ fontWeight: 500 }}>{formatCurrency(quarterDetail.financial.revenue)}</dd>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <dt style={{ color: 'var(--text-secondary)' }}>영업이익</dt>
+                          <dd style={{ fontWeight: 500 }}>{formatCurrency(quarterDetail.financial.operatingProfit)}</dd>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <dt style={{ color: 'var(--text-secondary)' }}>당기순이익</dt>
+                          <dd style={{ fontWeight: 500 }}>{formatCurrency(quarterDetail.financial.netIncome)}</dd>
+                        </div>
+                      </dl>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <p style={{ textAlign: 'center', color: 'var(--text-tertiary)' }}>데이터를 불러올 수 없습니다</p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -68,4 +68,9 @@ export const api = {
       `/companies/${id}/collect`,
       { method: 'POST' }
     ),
+
+  getQuarterDetail: (id: number, year: number, quarter: number) =>
+    request<{ financial: any; stockHistory: any[] }>(
+      `/companies/${id}/quarter-detail?year=${year}&quarter=${quarter}`
+    ),
 };

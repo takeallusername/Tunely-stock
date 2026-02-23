@@ -22,6 +22,7 @@ export class CompanyService {
 
   async register(userId: string, corpCode: string, corpName: string, stockCode?: string) {
     let company = await this.em.findOne(Company, { corpCode });
+    let isNewCompany = false;
 
     if (!company) {
       company = new Company();
@@ -29,6 +30,7 @@ export class CompanyService {
       company.corpName = corpName;
       company.stockCode = stockCode;
       this.em.persist(company);
+      isNewCompany = true;
     }
 
     const existingLink = await this.em.findOne(UserCompany, { userId, company });
@@ -41,7 +43,18 @@ export class CompanyService {
     userCompany.company = company;
 
     await this.em.persistAndFlush(userCompany);
-    return company;
+
+    if (isNewCompany) {
+      await this.collect(company.id);
+    }
+
+    return {
+      id: company.id,
+      corpCode: company.corpCode,
+      corpName: company.corpName,
+      stockCode: company.stockCode,
+      createdAt: company.createdAt,
+    };
   }
 
   async findAll(userId: string): Promise<Company[]> {
